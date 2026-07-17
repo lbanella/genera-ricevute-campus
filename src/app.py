@@ -850,18 +850,29 @@ def generate():
                     'cap': cap
                 }
                 
+                filename_base = make_safe_filename(cognome_bambino, nome_bambino)
+                generated_pdf_name = f"{filename_base}.pdf"
+                dest_pdf = os.path.join(workspace_output, generated_pdf_name)
+                
+                if os.path.exists(dest_pdf):
+                    log(f"[{index+1}/{total_rows}] Ricevuta già esistente per {nominativo_bambino} ({generated_pdf_name}). Salto.")
+                    shutil.copy2(dest_pdf, os.path.join(output_pdf_temp, generated_pdf_name))
+                    app_state["progress"] = int(((index + 1) / total_rows) * 100)
+                    continue
+                
                 # Compila Excel
                 wb = openpyxl.load_workbook(template_path)
+
                 for ws in wb.worksheets:
                     for r in ws.iter_rows():
                         for cell in r:
                             if cell.value is not None and isinstance(cell.value, str):
                                 cell.value = replace_placeholders(cell.value, row_data)
                 
-                filename_base = make_safe_filename(cognome_bambino, nome_bambino)
                 temp_xlsx = os.path.join(temp_work_dir, f"{filename_base}.xlsx")
                 wb.save(temp_xlsx)
                 wb.close()
+
                 
                 log(f"[{index+1}/{total_rows}] Compilato Excel temporaneo per {nominativo_bambino}")
                 

@@ -78,6 +78,32 @@ def replace_placeholders(text, mapping):
 
     return re.sub(r'\{\{?([^{}]+)\}\}?', repl, text)
 
+def find_libreoffice():
+    """
+    Rileva il percorso dell'eseguibile di LibreOffice su Windows, macOS e Linux.
+    """
+    import shutil
+    
+    # 1. Cerca nel PATH di sistema
+    for cmd in ["libreoffice", "soffice", "libreoffice.exe", "soffice.exe"]:
+        path = shutil.which(cmd)
+        if path:
+            return path
+            
+    # 2. Se su Windows, controlla percorsi di installazione standard
+    if sys.platform.startswith('win'):
+        standard_paths = [
+            r"C:\Program Files\LibreOffice\program\soffice.exe",
+            r"C:\Program Files (x86)\LibreOffice\program\soffice.exe"
+        ]
+        for path in standard_paths:
+            if os.path.exists(path):
+                return path
+                
+    # Fallback predefinito
+    return "libreoffice"
+
+
 # ==========================================
 # LOGICA PRINCIPALE DI COMPILAZIONE
 # ==========================================
@@ -196,6 +222,12 @@ def main():
                 'cap': cap
             }
             
+            filename_base = make_safe_filename(cognome_bambino, nome_bambino)
+            pdf_path = os.path.join(output_dir, f"{filename_base}.pdf")
+            if os.path.exists(pdf_path):
+                print(f"[{index+1}/{total}] Ricevuta già esistente per {nominativo_bambino} ({filename_base}.pdf). Salto.")
+                continue
+
             # Compila Excel
             wb = openpyxl.load_workbook(template_path)
             for ws in wb.worksheets:
@@ -205,15 +237,16 @@ def main():
                             cell.value = replace_placeholders(cell.value, row_data)
             
             import tempfile
-            filename_base = make_safe_filename(cognome_bambino, nome_bambino)
             temp_xlsx = os.path.join(tempfile.gettempdir(), f"{filename_base}.xlsx")
             wb.save(temp_xlsx)
             wb.close()
 
+
             
             # Converte in PDF usando LibreOffice
+            libreoffice_bin = find_libreoffice()
             cmd = [
-                "libreoffice",
+                libreoffice_bin,
                 "--headless",
                 "--convert-to",
                 "pdf",
@@ -224,14 +257,11 @@ def main():
             
             result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             if result.returncode != 0:
-                # Prova con soffice
-                cmd[0] = "soffice"
-                result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-                if result.returncode != 0:
-                    print(f"[{index+1}/{total}] ERRORE nella conversione PDF per: {nominativo_bambino}")
-                    if os.path.exists(temp_xlsx):
-                        os.remove(temp_xlsx)
-                    continue
+                print(f"[{index+1}/{total}] ERRORE nella conversione PDF per: {nominativo_bambino}")
+                if os.path.exists(temp_xlsx):
+                    os.remove(temp_xlsx)
+                continue
+
             
             # Pulisce temporaneo
             if os.path.exists(temp_xlsx):
