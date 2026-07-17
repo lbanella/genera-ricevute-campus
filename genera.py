@@ -103,6 +103,58 @@ def find_libreoffice():
     # Fallback predefinito
     return "libreoffice"
 
+def convert_xlsx_to_pdf(xlsx_path, pdf_path, output_dir):
+    """
+    Converte un file XLSX in PDF. Su Windows tenta prima l'uso di Microsoft Excel (via COM),
+    altrimenti ripiega su LibreOffice. Su altre piattaforme usa direttamente LibreOffice.
+    """
+    # 1. Prova con Microsoft Excel via pywin32 su Windows
+    if sys.platform.startswith('win'):
+        try:
+            import win32com.client
+            abs_xlsx = os.path.abspath(xlsx_path)
+            abs_pdf = os.path.abspath(pdf_path)
+            
+            excel = win32com.client.Dispatch("Excel.Application")
+            excel.Visible = False
+            excel.DisplayAlerts = False
+            try:
+                wb = excel.Workbooks.Open(abs_xlsx)
+                # xlTypePDF = 0
+                wb.ExportAsFixedFormat(0, abs_pdf)
+                wb.Close(False)
+                return True
+            except Exception as com_err:
+                print(f"DEBUG: Conversione nativa con MS Excel fallita: {com_err}")
+            finally:
+                excel.Quit()
+        except ImportError:
+            print("DEBUG: Libreria 'pywin32' non installata. Salto la conversione nativa con MS Excel.")
+        except Exception as e:
+            print(f"DEBUG: Errore generico inizializzazione MS Excel COM: {e}")
+
+    # 2. Fallback su LibreOffice
+    libreoffice_bin = find_libreoffice()
+    cmd = [
+        libreoffice_bin,
+        "--headless",
+        "--convert-to",
+        "pdf",
+        "--outdir",
+        output_dir,
+        xlsx_path
+    ]
+    
+    try:
+        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        if result.returncode == 0:
+            return True
+        else:
+            print(f"DEBUG: Errore LibreOffice (codice {result.returncode}): {result.stderr}")
+    except Exception as e:
+        print(f"DEBUG: Errore durante l'esecuzione di LibreOffice: {e}")
+        
+    return False
 
 # ==========================================
 # LOGICA PRINCIPALE DI COMPILAZIONE
@@ -243,20 +295,9 @@ def main():
 
 
             
-            # Converte in PDF usando LibreOffice
-            libreoffice_bin = find_libreoffice()
-            cmd = [
-                libreoffice_bin,
-                "--headless",
-                "--convert-to",
-                "pdf",
-                "--outdir",
-                output_dir,
-                temp_xlsx
-            ]
-            
-            result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-            if result.returncode != 0:
+            # Converte in PDF
+            success = convert_xlsx_to_pdf(temp_xlsx, pdf_path, output_dir)
+            if not success:
                 print(f"[{index+1}/{total}] ERRORE nella conversione PDF per: {nominativo_bambino}")
                 if os.path.exists(temp_xlsx):
                     os.remove(temp_xlsx)

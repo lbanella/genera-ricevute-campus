@@ -19,7 +19,7 @@ if %errorlevel% neq 0 (
 
 :: Crea l'ambiente virtuale se non esiste
 if not exist .venv (
-    echo Creazione dell'ambiente virtuale Python (.venv)...
+    echo Creazione dell'ambiente virtuale Python .venv...
     python -m venv .venv
 )
 
