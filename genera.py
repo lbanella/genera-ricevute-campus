@@ -36,6 +36,17 @@ def split_italian_name(full_name):
         
     return cognome, nome
 
+def find_column(df_cols, candidate_names):
+    """
+    Trova il nome effettivo della colonna tra i candidati in modo case-insensitive.
+    """
+    cols_map = {str(c).strip().lower(): c for c in df_cols}
+    for candidate in candidate_names:
+        cand_lower = candidate.strip().lower()
+        if cand_lower in cols_map:
+            return cols_map[cand_lower]
+    return None
+
 def make_safe_filename(cognome, nome):
     """
     Genera un nome file sicuro per il file system.
@@ -63,9 +74,16 @@ def replace_placeholders(text, mapping):
             
         col_mappings = {
             'cognome e nome del bambino': mapping.get('nome_bambino_completo', ''),
+            'cognome del bambino': mapping.get('cognome_bambino', ''),
+            'nome del bambino': mapping.get('nome_bambino', ''),
             'codice fiscale del bambino': mapping.get('cf_bambino', ''),
             'nominativo genitore a cui intestare la ricevuta': mapping.get('nome_genitore_completo', ''),
+            'cognome del genitore a cui intestare la ricevuta': mapping.get('cognome_genitore', ''),
+            'nome del genitore a cui intestare la ricevuta': mapping.get('nome_genitore', ''),
+            'cognome del genitore': mapping.get('cognome_genitore', ''),
+            'nome del genitore': mapping.get('nome_genitore', ''),
             'codice fiscale del genitore a cui intestare la ricevuta': mapping.get('cf_genitore', ''),
+            'codice fiscale del genitore': mapping.get('cf_genitore', ''),
             'via di residenza': mapping.get('via', ''),
             'citta': mapping.get('citta', ''),
             'città': mapping.get('citta', ''),
@@ -220,19 +238,76 @@ def main():
         df = pd.read_excel(dati_path, dtype=str)
         df.columns = [c.strip() for c in df.columns]
         
-        required_cols = [
-            "Cognome e Nome del Bambino",
-            "Codice Fiscale del Bambino",
-            "Nominativo Genitore a cui Intestare la Ricevuta",
-            "Codice Fiscale del Genitore a cui Intestare la Ricevuta",
-            "Via di Residenza",
-            "CITTA",
-            "CAP"
+        # Riconoscimento flessibile delle colonne
+        cols_bambino_cognome = ["cognome del bambino", "cognome bambino"]
+        cols_bambino_nome = ["nome del bambino", "nome bambino"]
+        cols_bambino_combo = ["cognome e nome del bambino", "nominativo bambino", "nome e cognome del bambino"]
+        
+        cols_bambino_cf = ["codice fiscale del bambino", "cf bambino", "codice fiscale bambino"]
+        
+        cols_genitore_cognome = [
+            "cognome del genitore a cui intestare la ricevuta",
+            "cognome del genitore",
+            "cognome genitore"
+        ]
+        cols_genitore_nome = [
+            "nome del genitore a cui intestare la ricevuta",
+            "nome del genitore",
+            "nome genitore"
+        ]
+        cols_genitore_combo = [
+            "nominativo genitore a cui intestare la ricevuta",
+            "nominativo genitore",
+            "cognome e nome genitore",
+            "cognome e nome del genitore"
         ]
         
-        missing_cols = [c for c in required_cols if c not in df.columns]
-        if missing_cols:
-            print(f"ERRORE: Mancano colonne nell'Excel dei dati:\n{', '.join(missing_cols)}")
+        cols_genitore_cf = [
+            "codice fiscale del genitore a cui intestare la ricevuta",
+            "codice fiscale del genitore",
+            "cf genitore",
+            "codice fiscale genitore"
+        ]
+        
+        cols_via = ["via di residenza", "via", "indirizzo"]
+        cols_citta = ["citta", "città", "città di residenza", "citta di residenza"]
+        cols_cap = ["cap"]
+
+        # Trova le colonne effettive
+        col_b_cog = find_column(df.columns, cols_bambino_cognome)
+        col_b_nom = find_column(df.columns, cols_bambino_nome)
+        col_b_combo = find_column(df.columns, cols_bambino_combo)
+        
+        col_b_cf = find_column(df.columns, cols_bambino_cf)
+        
+        col_g_cog = find_column(df.columns, cols_genitore_cognome)
+        col_g_nom = find_column(df.columns, cols_genitore_nome)
+        col_g_combo = find_column(df.columns, cols_genitore_combo)
+        
+        col_g_cf = find_column(df.columns, cols_genitore_cf)
+        
+        col_via = find_column(df.columns, cols_via)
+        col_citta = find_column(df.columns, cols_citta)
+        col_cap = find_column(df.columns, cols_cap)
+
+        missing = []
+        if not (col_b_cog and col_b_nom) and not col_b_combo:
+            missing.append("Cognome/Nome Bambino")
+        if not col_b_cf:
+            missing.append("Codice Fiscale del Bambino")
+        if not (col_g_cog and col_g_nom) and not col_g_combo:
+            missing.append("Cognome/Nome Genitore")
+        if not col_g_cf:
+            missing.append("Codice Fiscale del Genitore")
+        if not col_via:
+            missing.append("Via di Residenza")
+        if not col_citta:
+            missing.append("Città")
+        if not col_cap:
+            missing.append("CAP")
+
+        if missing:
+            print(f"ERRORE: Mancano colonne nell'Excel dei dati:\n{', '.join(missing)}")
             sys.exit(1)
             
         total = len(df)
@@ -249,16 +324,31 @@ def main():
             return s
             
         for index, row in df.iterrows():
-            nominativo_bambino = safe_str(row["Cognome e Nome del Bambino"])
-            cf_bambino = safe_str(row["Codice Fiscale del Bambino"])
-            nominativo_genitore = safe_str(row["Nominativo Genitore a cui Intestare la Ricevuta"])
-            cf_genitore = safe_str(row["Codice Fiscale del Genitore a cui Intestare la Ricevuta"])
-            via = safe_str(row["Via di Residenza"])
-            citta = safe_str(row["CITTA"])
-            cap = safe_str(row["CAP"])
+            # Bambino
+            if col_b_cog and col_b_nom:
+                cognome_bambino = safe_str(row[col_b_cog])
+                nome_bambino = safe_str(row[col_b_nom])
+                nominativo_bambino = f"{cognome_bambino} {nome_bambino}".strip()
+            else:
+                nominativo_bambino = safe_str(row[col_b_combo])
+                cognome_bambino, nome_bambino = split_italian_name(nominativo_bambino)
+                
+            cf_bambino = safe_str(row[col_b_cf])
             
-            cognome_bambino, nome_bambino = split_italian_name(nominativo_bambino)
-            cognome_genitore, nome_genitore = split_italian_name(nominativo_genitore)
+            # Genitore
+            if col_g_cog and col_g_nom:
+                cognome_genitore = safe_str(row[col_g_cog])
+                nome_genitore = safe_str(row[col_g_nom])
+                nominativo_genitore = f"{cognome_genitore} {nome_genitore}".strip()
+            else:
+                nominativo_genitore = safe_str(row[col_g_combo])
+                cognome_genitore, nome_genitore = split_italian_name(nominativo_genitore)
+                
+            cf_genitore = safe_str(row[col_g_cf])
+            
+            via = safe_str(row[col_via])
+            citta = safe_str(row[col_citta])
+            cap = safe_str(row[col_cap])
             
             row_data = {
                 'nome_bambino_completo': nominativo_bambino,
