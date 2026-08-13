@@ -40,11 +40,14 @@ def find_column(df_cols, candidate_names):
     """
     Trova il nome effettivo della colonna tra i candidati in modo case-insensitive.
     """
-    cols_map = {str(c).strip().lower(): c for c in df_cols}
+    def normalize(s):
+        return " ".join(str(s).strip().lower().split())
+        
+    cols_map = {normalize(c): c for c in df_cols}
     for candidate in candidate_names:
-        cand_lower = candidate.strip().lower()
-        if cand_lower in cols_map:
-            return cols_map[cand_lower]
+        cand_norm = normalize(candidate)
+        if cand_norm in cols_map:
+            return cols_map[cand_norm]
     return None
 
 def make_safe_filename(cognome, nome):
@@ -191,7 +194,7 @@ def main():
     
     # Cerca file dei paganti
     for f in current_files:
-        if 'paganti' in f.lower() and (f.endswith('.xlsx') or f.endswith('.xls') or f.endswith('.xlxsx')):
+        if 'paganti' in f.lower() and (f.endswith('.csv') or f.endswith('.xlsx') or f.endswith('.xls') or f.endswith('.xlxsx')):
             dati_path = f
             break
             
@@ -204,7 +207,7 @@ def main():
     # Se non trovati, prova in templates/
     if not dati_path and os.path.exists('templates'):
         for f in os.listdir('templates'):
-            if 'paganti' in f.lower() and (f.endswith('.xlsx') or f.endswith('.xls')):
+            if 'paganti' in f.lower() and (f.endswith('.csv') or f.endswith('.xlsx') or f.endswith('.xls')):
                 dati_path = os.path.join('templates', f)
                 break
                 
@@ -216,7 +219,7 @@ def main():
 
     # Se mancano i file
     if not dati_path:
-        print("ERRORE: Impossibile trovare il file Excel dei paganti (es: paganti.xlsx)")
+        print("ERRORE: Impossibile trovare il file dei paganti (es: paganti.csv o paganti.xlsx)")
         print("Assicurati che sia presente in questa cartella.")
         sys.exit(1)
         
@@ -235,8 +238,27 @@ def main():
     
     try:
         # Carica foglio dati (tutto come testo)
-        df = pd.read_excel(dati_path, dtype=str)
-        df.columns = [c.strip() for c in df.columns]
+        if dati_path.lower().endswith('.csv'):
+            try:
+                # Prova prima con la virgola
+                df = pd.read_csv(dati_path, dtype=str, sep=',')
+                # Se c'è solo una colonna e l'intestazione contiene il punto e virgola, riprova con ;
+                if len(df.columns) == 1 and ';' in df.columns[0]:
+                    df = pd.read_csv(dati_path, dtype=str, sep=';')
+            except Exception:
+                # Fallback
+                df = pd.read_csv(dati_path, dtype=str, sep=None, engine='python')
+        else:
+            df = pd.read_excel(dati_path, dtype=str)
+            
+        df.columns = [str(c).strip() for c in df.columns]
+        
+        # Gestione speciale se l'Excel contiene dati CSV in un'unica colonna
+        if not dati_path.lower().endswith('.csv') and len(df.columns) == 1 and ',' in df.columns[0]:
+            import io
+            csv_data = df.columns[0] + "\n" + "\n".join(df.iloc[:, 0].dropna())
+            df = pd.read_csv(io.StringIO(csv_data), dtype=str)
+            df.columns = [str(c).strip() for c in df.columns]
         
         # Riconoscimento flessibile delle colonne
         cols_bambino_cognome = ["cognome del bambino", "cognome bambino"]
@@ -376,7 +398,17 @@ def main():
                 for r in ws.iter_rows():
                     for cell in r:
                         if cell.value is not None and isinstance(cell.value, str):
-                            cell.value = replace_placeholders(cell.value, row_data)
+                            original_value = cell.value
+                            new_value = replace_placeholders(cell.value, row_data)
+                            if original_value != new_value:
+                                cell.value = new_value
+                                # Previene il taglio del testo su celle con altezza fissa disabilitando l'a capo
+                                # e ridimensionando il font per adattarlo alla larghezza della cella
+                                from copy import copy
+                                new_alignment = copy(cell.alignment)
+                                new_alignment.wrap_text = False
+                                new_alignment.shrink_to_fit = True
+                                cell.alignment = new_alignment
             
             import tempfile
             temp_xlsx = os.path.join(tempfile.gettempdir(), f"{filename_base}.xlsx")
