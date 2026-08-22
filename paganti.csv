@@ -1,5 +1,2 @@
-Cognome del Bambino;Nome del Bambino;Codice Fiscale del Bambino;Cognome del Genitore a cui Intestare la Ricevuta;Nome del  Genitore a cui Intestare la Ricevuta;Codice Fiscale del Genitore a cui Intestare la Ricevuta;Via di Residenza;CITTA;CAP
-Galletti;Federico;GLLFRC20H21G478G;Mencaroni;Arianna;MNCRNN86M70G478W;Strada Pila San Martino in Colle 16/V;Perugia (PG);06132
-Galletti;Alessia;GLLLSS18B54G478E;Mencaroni;Arianna;MNCRNN86M70G478W;Strada Pila San Martino in Colle 16/V;Perugia (PG);06132
-Mordivoglia;Costanza;MRDCTN22B50G478V;Bindella;Lara;BNDLRA84R70D786R;Via Lillacci, 6/B;Perugia (PG);06132
-Mordivoglia;Giulio;MRDGLI19H11G478Y;Bindella;Lara;BNDLRA84R70D786R;Via Lillacci, 6/B;Perugia (PG);06132
+Cognome del Bambino,Nome del Bambino,Codice Fiscale del Bambino,Cognome del Genitore a cui Intestare la Ricevuta,Nome del  Genitore a cui Intestare la Ricevuta,Codice Fiscale del Genitore a cui Intestare la Ricevuta,Via di Residenza,CITTA,CAP
+Bussolini,Tommaso,BSSTMS20L10G478H,Ciliani,Valeria,CLNVLR86L50G478Y,Via madonna del sale 12,Perugia ,06132
